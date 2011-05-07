@@ -17,7 +17,7 @@ $xml->title["original-title"] = "東方Project"; // result (applied to the eleme
 $xml->author(array("name" => "ZUN", "website" => "http://www16.big.or.jp/~zun/")); // result: <author name="ZUN" website="http://www16.big.or.jp/~zun/" />
 
 // to create an element with both value and attribute present:
-$xml->developer("Team Shanghai Alice", array("original-name" => "上海アリス幻樂団")); // result: <team original-title="上海アリス幻樂団">Team Shanghai Alice</team>
+$xml->developer("Team Shanghai Alice", array("original-name" => "上海アリス幻樂団")); // result: <team original-name="上海アリス幻樂団">Team Shanghai Alice</team>
 
 
 // you can use method chaining to continuously create new element inside the current active node.
