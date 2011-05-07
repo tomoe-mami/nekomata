@@ -5,7 +5,42 @@ include("nekomata.php");
 $xml = nekomata::_new();
 
 // common usage, create/append new elements inside current active node.
+// you can create new element just by using the element name as function/method name,
+// and the element value as the first argument
+
+$xml->title("Touhou Project"); // result: <title>Touhou Project</title>
+
+// to set an attribute, use the attribute name as array index
+$xml->title["original-title"] = "東方Project"; // result (applied to the element created in example above): <title original-title="東方Project">Touhou Project</title>
+
+// if the first argument is an array, it will be treated as attribute list
+$xml->author(array("name" => "ZUN", "website" => "http://www16.big.or.jp/~zun/")); // result: <author name="ZUN" website="http://www16.big.or.jp/~zun/" />
+
+// to create an element with both value and attribute present:
+$xml->developer("Team Shanghai Alice", array("original-name" => "上海アリス幻樂団")); // result: <team original-title="上海アリス幻樂団">Team Shanghai Alice</team>
+
+
+// you can use method chaining to continuously create new element inside the current active node.
+// when you use method chaining, if the new element has no value or its value is nekomata::fork or TRUE
+// the current active node will be set to the newly created element
+
+$xml
+	->genres()								// this will create <genres> in the current node (root node)
+		->genre("Shoot 'Em Up")			// this and the one below it will create <genre>blah</genre> inside <genres>
+		->genre("Fighting");
+
 // nekomata::_up() will set parent node as the active node.
+
+$xml
+	->publisher("Team Shanghai Alice")
+	->platforms()
+		->platform("NEC PC-9801", array("url" => "http://en.wikipedia.org/wiki/NEC_PC-9801"))
+		->platform("Windows", array("url" => "http://en.wikipedia.org/wiki/Windows"))
+		->_up()
+	->releases()
+		->release("Highly Responsive to Prayers", array("year" => 1996, "initial" => "yes"))
+		->release("Ten Desires", array("year" => 2011));
+
 $xml
 	->group(array("name" => "Subterranean Animism"))
 		->member("Komeiji Satori", array("title" => "The Girl Feared by Evil Spirits", "type" => "Satori"))
@@ -32,12 +67,24 @@ $xml->group[1]
 	->member("Koakuma", array("title" => "Little Devil", "type" => "Devil"));
 
 // modify content of a node
+$xml->group[0]["original-title"] = "東方地霊殿";
 $xml->group[1]->member[4] = "Hong Meiling";
 
 // add/edit attribute
-$xml->group[0]["original-title"] = "東方地霊殿";
 $xml->group[1]->member[4]["title"] = "Lazy Gate Guard";
 
 
 header("Content-Type: text/xml");
 $xml->_render("dump");
+// if you want tidied output, add "tidy" to the arg list when calling nekomata::_render()
+// eg: $xml->_render("tidy", "dump");
+// the order of argument doesn't matter
+
+
+
+// NOTE:
+// all nekomata's internal function names are prefixed with underscore
+// so try to avoid using xml element name with underscore in front of it.
+// if you really need to create element like that, use nekomata::_create()
+// eg:
+// $xml->_create("_element", "value", array("attr" => "value"));
