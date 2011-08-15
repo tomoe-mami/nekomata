@@ -424,7 +424,7 @@ class nekomata extends SimpleXMLElement
 		$node = $curdom->parentNode->insertBefore($elem, $refnode);
 		if ($node instanceOf DOMElement)
 		{
-			$sxenode = simplexml_import_dom($node, __CLASS__);
+			$sxenode = simplexml_import_dom($node, get_class($this));
 			if (!empty($attribute))
 			{
 				foreach ($attribute as $attrname => $attrval)
