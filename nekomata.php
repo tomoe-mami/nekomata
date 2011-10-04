@@ -106,10 +106,10 @@ class nekomata extends SimpleXMLElement
    {
       $nslist = $this->getDocNamespaces();
 
-      if (is_array($nslist) && !empty($nslist[$prefix]))
+      if (is_array($nslist))
       {
-         if (!isset($nslist[$prefix]) && $prefix == $this->_defaultns())
-            return(@$nslist[""]);
+         if (!isset($nslist[$prefix]) && $prefix == self::default_nsprefix)
+            return(isset($nslist[""]) ? $nslist[""] : "");
          else return($nslist[$prefix]);
       }
 
