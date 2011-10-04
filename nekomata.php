@@ -53,13 +53,12 @@ class nekomata extends SimpleXMLElement
 
       $parts = array($config["qualified_name"]);
 
-      if (!empty($config["namespace_uri"]))
-         $parts[] = sprintf('xmlns="%s"', $config["namespace_uri"]);
-
-      if (!empty($config["extra_namespaces"]))
+      if (!empty($config["namespaces"]))
       {
-         foreach ($config["extra_namespaces"] as $nsprefix => $nsuri)
-            $parts[] = sprintf('xmlns:%s="%s"', $nsprefix, $nsuri);
+         foreach ($config["namespaces"] as $nsprefix => $nsuri)
+            $parts[] = sprintf("xmlns%s=\"%s\"",
+               ($nsprefix == "" ? "" : ":".$nsprefix),
+               $nsuri);
       }
 
       if (!empty($config["root_attributes"]))
@@ -78,7 +77,7 @@ class nekomata extends SimpleXMLElement
 
       if ($document instanceOf $class)
       {
-         if (!empty($config["namespace_uri"]) || !empty($config["extra_namespace"]))
+         if (!empty($config["namespaces"]))
          {
             $namespaces = $document->getDocNamespaces();
             if (!empty($namespaces))
@@ -103,23 +102,9 @@ class nekomata extends SimpleXMLElement
       return($returndoc ? $dom->ownerDocument : $dom);
    }
 
-   public function _get_namespaces()
-   {
-      static $namespacelist;
-      
-      if (!$namespacelist)
-      {
-         $found = $this->getDocNamespaces();
-         if (empty($found)) $namespacelist = TRUE;
-         else $namespacelist = $found;
-      }
-
-      return($namespacelist);
-   }
-
    public function _get_nsuri($prefix)
    {
-      $nslist = $this->_get_namespaces();
+      $nslist = $this->getDocNamespaces();
 
       if (is_array($nslist) && !empty($nslist[$prefix]))
       {
@@ -133,7 +118,7 @@ class nekomata extends SimpleXMLElement
 
    public function _get_nsprefix($uri)
    {
-      $nslist = $this->_get_namespaces();
+      $nslist = $this->getDocNamespaces();
 
       if (is_array($nslist))
          return(array_search($uri, $nslist));
@@ -519,8 +504,13 @@ class nekomata extends SimpleXMLElement
 
       if (in_array("dump", $args))
       {
-         if (in_array("html", $args) && method_exists($doc, "saveHTMLFile"))
-            return($doc->saveHTMLFile("php://output"));
+         if (in_array("html", $args))
+         {
+            if (method_exists($doc, "saveHTMLFile"))
+               return($doc->saveHTMLFile("php://output"));
+            else
+               echo $doc->saveHTML();
+         }
          else
             return($doc->save("php://output"));
       }

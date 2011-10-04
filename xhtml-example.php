@@ -58,5 +58,6 @@ $doc
 			->image("http://danbooru.donmai.us/data/preview/3ca53dc8cf640a55d4a460f22155b7d7.jpg")
 			->_up();
 
+$doc->body->_first_child()->_insert("span", gmdate(DateTime::ATOM));
 header("Content-Type: application/xhtml+xml");
-$doc->_render("dump");
+$doc->_render("dump", "tidy");
