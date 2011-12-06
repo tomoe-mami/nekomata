@@ -21,10 +21,12 @@ class nekomata extends SimpleXMLElement
 
       $parts = array("xml");
       if (!empty($config["version"]))
-         $parts[] = sprintf('version="%s"', $config["version"]);
+         $parts[] = sprintf('version="%s"',
+            self::_escape_text($config["version"], ENT_COMPAT));
 
       if (!empty($config["encoding"]))
-         $parts[] = sprintf('encoding="%s"', $config["encoding"]);
+         $parts[] = sprintf('encoding="%s"',
+            self::_escape_text($config["encoding"], ENT_COMPAT));
 
       if (isset($config["standalone"]))
          $parts[] = sprintf('standalone="%s"', $config["standalone"] ? "yes" : "no");
@@ -57,14 +59,18 @@ class nekomata extends SimpleXMLElement
       {
          foreach ($config["namespaces"] as $nsprefix => $nsuri)
             $parts[] = sprintf("xmlns%s=\"%s\"",
-               ($nsprefix == "" ? "" : ":".$nsprefix),
-               $nsuri);
+               ($nsprefix == "" ? "" : ":".str_replace(':', '', $nsprefix)),
+               self::_escape_text($nsuri)
+            );
       }
 
       if (!empty($config["root_attributes"]))
       {
          foreach ($config["root_attributes"] as $attrname => $attrval)
-            $parts[] = sprintf('%s="%s"', $attrname, $attrval);
+            $parts[] = sprintf('%s="%s"',
+               $attrname,
+               self::_escape_text($attrval, ENT_COMPAT)
+            );
       }
 
       $root = sprintf("<%s></%s>", implode(" ", $parts), $config["qualified_name"]);
@@ -128,7 +134,7 @@ class nekomata extends SimpleXMLElement
 
    protected function _parse_name($name)
    {
-      $parts   = explode(":", $name);
+      $parts = explode(":", $name);
 
       if (count($parts) > 1)
       {
@@ -158,9 +164,10 @@ class nekomata extends SimpleXMLElement
       return(FALSE);
    }
 
-   public static function _escape_text($text)
+   public static function _escape_text($text, $flag = ENT_NOQUOTES)
    {
-      return(preg_replace('/\&(?!amp;|lt;|gt;|\#\d+;)/', '&amp;', $text));
+      $decoded = html_entity_decode($text, $flag, 'UTF-8');
+      return(htmlspecialchars($decoded, $flag, 'UTF-8'));
    }
 
    public function _create(
@@ -446,18 +453,13 @@ class nekomata extends SimpleXMLElement
       return($this);
    }
 
-   public function _base($node = NULL)
-   {
-      static $basenode;
-
-      if ($node === TRUE) $basenode = $this;
-      else if ($node !== NULL) $basenode = $node;
-      return($basenode);
-   }
-
    public function _up()
    {
-      return($this->_path(".."));
+      if (($dom = $this->_get_dom()) === FALSE) return(FALSE);
+
+      if ($dom->parentNode instanceOf DOMNode)
+         return(simplexml_import_dom($dom->parentNode, get_class($this)));
+      else return(FALSE);
    }
 
    public function _first_child()
