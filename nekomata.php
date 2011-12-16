@@ -392,7 +392,7 @@ class nekomata extends SimpleXMLElement
       {
          if (!$curdom->nextSibling)
             return($this->_up()->_create($tag, $tagvalue, $attribute, $nsprefix));
-         else $refnode = $curdom->nextSibling();
+         else $refnode = $curdom->nextSibling;
       }
       else $refnode = $curdom;
 
