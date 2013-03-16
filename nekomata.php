@@ -92,10 +92,7 @@ class Nekomata extends SimpleXMLElement
          $neko->registerXPathNamespace(self::DEFAULT_NS_PREFIX, $default_ns_uri);
 
       if (!empty($options['attributes']))
-      {
-         foreach ($options['attributes'] as $attrname => $attrvalue)
-            $neko->addAttribute($attrname, $attrvalue);
-      }
+         $neko->setAttributes($document->documentElement, $options['attributes']);
 
       return $neko;
    }
@@ -169,7 +166,6 @@ class Nekomata extends SimpleXMLElement
       foreach ($attributes as $key => $value)
       {
          $key = $this->parseQualifiedName($key, $node);
-         if (empty($key['qualified_name'])) return false;
 
          if (empty($key['uri']))
             $node->setAttribute($key['qualified_name'], $value);
@@ -185,7 +181,6 @@ class Nekomata extends SimpleXMLElement
    {
       $dom = $this->dom();
       $tag = $this->parseQualifiedName($node_name, $dom);
-      if (empty($tag['qualified_name'])) return false;
 
       if (empty($tag['uri']))
          $node = $dom->ownerDocument->createElement($tag['qualified_name']);
@@ -225,7 +220,6 @@ class Nekomata extends SimpleXMLElement
       }
 
       $tag = $this->parseQualifiedName($node_name, $dom);
-      if (empty($tag['qualified_name'])) return false;
 
       if (empty($tag['uri']))
          $node = $dom->ownerDocument->createElement($tag['qualified_name']);
