@@ -1,545 +1,323 @@
 <?php
 // vim: ts=3 sw=3 et
 
-class nekomata extends SimpleXMLElement
+class Nekomata extends SimpleXMLElement
 {
-   const fork = TRUE;
-   const default_nsprefix = "__";
+   const XMLNS_URI         = 'http://www.w3.org/2000/xmlns/',
+         DEFAULT_NS_PREFIX = '_';
 
-   public static function _new($config = FALSE, $class = FALSE)
+   public static function create(array $options = null, $class = null)
    {
-      if (empty($config))
-      {
-         $config = array(
-            "qualified_name"  => "xml",
-            "version"         => "1.0",
-            "encoding"        => "utf-8"
+      static $implementation;
+
+      $default =
+         array(
+            'system_id'       => null,
+            'public_id'       => null,
+            'qualified_name'  => 'root',
+            'encoding'        => 'UTF-8',
+            'version'         => '1.0',
+            'standalone'      => false,
+            'namespaces'      => array(),
+            'attributes'      => array(),
+            'create_doctype'  => false
          );
+
+      if (isset($options))
+         $options = $options + $default;
+      else
+         $options = $default;
+
+      if (!isset($options['namespaces'][self::DEFAULT_NS_PREFIX]))
+         $default_ns_uri = null;
+      else
+      {
+         $default_ns_uri = $options['namespaces'][self::DEFAULT_NS_PREFIX];
+         unset($options['namespaces'][self::DEFAULT_NS_PREFIX]);
       }
 
-      if (empty($config["qualified_name"])) return(FALSE);
-
-      $parts = array("xml");
-      if (!empty($config["version"]))
-         $parts[] = sprintf('version="%s"',
-            self::_escape_text($config["version"], ENT_COMPAT));
-
-      if (!empty($config["encoding"]))
-         $parts[] = sprintf('encoding="%s"',
-            self::_escape_text($config["encoding"], ENT_COMPAT));
-
-      if (isset($config["standalone"]))
-         $parts[] = sprintf('standalone="%s"', $config["standalone"] ? "yes" : "no");
-
-      $declaration = sprintf("<?%s?".">\n", implode(" ", $parts));
-
-      if (isset($config["doctype"]) && $config["doctype"])
+      if (isset($options['create_doctype']) && $options['create_doctype'])
       {
-         $parts   = array("DOCTYPE");
-         $parts[] = $config["qualified_name"];
-         if (!empty($config["public_id"]))
-         {
-            $parts[] = "PUBLIC";
-            $parts[] = '"'.$config["public_id"].'"';
-         }
+         if (!$implementation instanceOf DOMImplementation)
+            $implementation = new DOMImplementation();
 
-         if (!empty($config["system_id"]))
-         {
-            if (empty($config["public_id"])) $parts[] = "SYSTEM";
-            $parts[] = '"'.$config["system_id"].'"';
-         }
-
-         $doctype = sprintf("<!%s>\n", implode(" ", $parts));
-      }
-      else $doctype = NULL;
-
-      $parts = array($config["qualified_name"]);
-
-      if (!empty($config["namespaces"]))
-      {
-         foreach ($config["namespaces"] as $nsprefix => $nsuri)
-            $parts[] = sprintf("xmlns%s=\"%s\"",
-               ($nsprefix == "" ? "" : ":".str_replace(':', '', $nsprefix)),
-               self::_escape_text($nsuri)
+         $doctype = $implementation->createDocumentType(
+               $options['qualified_name'],
+               $options['public_id'],
+               $options['system_id']
             );
-      }
 
-      if (!empty($config["root_attributes"]))
-      {
-         foreach ($config["root_attributes"] as $attrname => $attrval)
-            $parts[] = sprintf('%s="%s"',
-               $attrname,
-               self::_escape_text($attrval, ENT_COMPAT)
+         $document = $implementation->createDocument(
+               $default_ns_uri,
+               $options['qualified_name'],
+               $doctype
             );
-      }
-
-      $root = sprintf("<%s></%s>", implode(" ", $parts), $config["qualified_name"]);
-
-      if (empty($class)) $class = __CLASS__;
-
-      $document = simplexml_load_string(
-                     $declaration.$doctype.$root,
-                     $class);
-
-      if ($document instanceOf $class)
-      {
-         if (!empty($config["namespaces"]))
-         {
-            $namespaces = $document->getDocNamespaces();
-            if (!empty($namespaces))
-            {
-               foreach ($namespaces as $nsprefix => $nsuri)
-                  $document->registerXPathNamespace(
-                     (empty($nsprefix) ? self::default_nsprefix : $nsprefix),
-                     $nsuri);
-            }
-         }
-
-         return($document);
-      }
-      else return(FALSE);
-   }
-
-   public function _get_dom($returndoc = FALSE)
-   {
-      if (!($dom = dom_import_simplexml($this)))
-         return(FALSE);
-
-      return($returndoc ? $dom->ownerDocument : $dom);
-   }
-
-   public function _get_nsuri($prefix)
-   {
-      $nslist = $this->getDocNamespaces();
-
-      if (is_array($nslist))
-      {
-         if (!isset($nslist[$prefix]) && $prefix == self::default_nsprefix)
-            return(isset($nslist[""]) ? $nslist[""] : "");
-         else return($nslist[$prefix]);
-      }
-
-      return(FALSE);
-   }
-
-   public function _get_nsprefix($uri)
-   {
-      $nslist = $this->getDocNamespaces();
-
-      if (is_array($nslist))
-         return(array_search($uri, $nslist));
-
-      return(FALSE);
-   }
-
-   protected function _parse_name($name)
-   {
-      $parts = explode(":", $name);
-
-      if (count($parts) > 1)
-      {
-         $nsuri = $this->_get_nsuri($parts[0]);
-         $parsed =
-            array(
-               "nsprefix"     => (empty($nsuri) ? NULL : $parts[0]),
-               "nsuri"        => $nsuri,
-               "name"         => $parts[0].":".$parts[1]
-            );
-      }
-      else $parsed = 
-         array("nsprefix" => NULL, "nsuri" => NULL, "name" => $parts[0]);
-
-      return($parsed);
-   }
-
-   public function _add_child($tag, $value = self::fork)
-   {
-      $parsed = $this->_parse_name($tag);
-      if (!empty($parsed["name"]))
-         return($this->addChild(
-            $parsed["name"],
-            ($value === self::fork ? NULL : $value),
-            $parsed["nsuri"])
-         );
-      return(FALSE);
-   }
-
-   public static function _escape_text($text, $flag = ENT_NOQUOTES)
-   {
-      $decoded = html_entity_decode($text, $flag, 'UTF-8');
-      return(htmlspecialchars($decoded, $flag, 'UTF-8'));
-   }
-
-   public function _create(
-      $tag,
-      $tagvalue   = self::fork,
-      $attributes = NULL,
-      $nsprefix   = NULL,
-      $safe       = FALSE)
-   {
-      if (!empty($nsprefix))
-         $tag = (strpos($tag, ":") === FALSE ? $nsprefix.":" : NULL).$tag;
-
-      if (is_array($tagvalue))
-      {
-         foreach ($tagvalue as $value)
-            $this->_create(
-               $tag, $value, $attributes, $nsprefix, $safe
-            );
-         return($this);
-      }
-
-      if ($tagvalue !== NULL && $tagvalue !== TRUE
-         && $tagvalue !== FALSE && $tagvalue !== self::fork
-         && !$safe)
-         $tagvalue = $this->_escape_text($tagvalue);
-
-      $node = $this->_add_child($tag, $tagvalue);
-
-      if ($node === FALSE) return(FALSE);
-
-      if (!empty($attributes)
-         && (is_array($attributes)
-         || $attributes instanceOf stdClass))
-      {
-         foreach ($attributes as $attrkey => $attrvalue)
-            $node->_add_attribute($attrkey, $attrvalue);
-      }
-
-      if ($tagvalue === self::fork)
-         return($node);
-      else return($node->_up());
-   }
-
-   public function _remove()
-   {
-      $dom = $this->_get_dom();
-      if ($dom->parentNode)
-         return($dom->parentNode->removeChild($dom));
-      else return(FALSE);
-   }
-
-   public function _add_attribute($key, $value)
-   {
-      if ($value !== FALSE)
-      {
-         $parsed = $this->_parse_name($key);
-         if (!empty($parsed["name"]))
-            $this->addAttribute($parsed["name"], $value, $parsed["nsuri"]);
-      }
-
-      return($this);
-   }
-
-   public function _set_attribute($arg1, $arg2 = NULL)
-   {
-      $curdom = $this->_get_dom();
-
-      if (!method_exists($curdom, "setAttribute"))
-         return(FALSE);
-
-      if (is_array($arg1))
-         $attributes = $arg1;
-      else $attributes = array($arg1 => $arg2);
-
-      foreach ($attributes as $attrname => $attrvalue)
-         $curdom->setAttribute($attrname, $attrvalue);
-
-      return($this);
-   }
-
-   public function _remove_attribute($names)
-   {
-      $curdom = $this->_get_dom();
-      if (!method_exists($curdom, "removeAttribute"))
-         return(FALSE);
-
-      if (!is_array($names)) $names = array($names);
-      foreach ($names as $attrname)
-         $curdom->removeAttribute($attrname);
-
-      return($this);
-   }
-
-   public function _value($newvalue = FALSE)
-   {
-      $curdom = $this->_get_dom();
-      if (!property_exists($curdom, "nodeValue"))
-         return(FALSE);
-
-      $curdom->nodeValue = $newvalue;
-      return($this);
-   }
-
-   public function _fragment($string)
-   {
-      if (empty($string)) return($this);
-
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      $fragment = $curdom->ownerDocument->createDocumentFragment();
-      $fragment->appendXML($string);
-      $curdom->appendChild($fragment);
-
-      return($this);
-   }
-
-   public function _construct_pi_param($param)
-   {
-      $arg = array();
-      foreach ($param as $attr => $value)
-         $arg[] = sprintf('%s="%s"', $attr, $value);
-      return(implode(" ", $arg));
-   }
-
-   public function _pi($name, $param, $beforeroot = FALSE)
-   {
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      $pi = $curdom->ownerDocument->createProcessingInstruction(
-         $name,
-         (is_array($param) ? $this->_construct_pi_param($param) : $param));
-
-      if ($beforeroot)
-      {
-         $node = $this->_path("/child::*[position()=1]")->_get_dom();
-         $curdom->ownerDocument->insertBefore($pi, $node);
-      }
-      else $curdom->appendChild($pi);
-      
-      return($this);
-   }
-
-   public function _comment($text)
-   {
-      if (empty($text)) return($this);
-
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      $comment = $curdom->ownerDocument->createComment(
-         str_replace("--", "-".chr(194).chr(173)."-", $text));
-
-      $curdom->appendChild($comment);
-
-      return($this);
-   }
-
-   public function _cdata($text)
-   {
-      if (empty($text)) return($this);
-
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      $cdata = $curdom->ownerDocument->createCDATASection($text);
-      $curdom->appendChild($cdata);
-
-      return($this);
-   }
-
-   public function _text($text)
-   {
-      if (empty($text)) return($this);
-
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      $textnode = $curdom->ownerDocument->createTextNode($text);
-      $curdom->appendChild($textnode);
-
-      return($this);
-   }
-
-   public static function _valid_node($node)
-   {
-      if (!is_object($node)) return(FALSE);
-
-      return($node instanceOf nekomata);
-   }
-
-   public function _attach($ext, $before = FALSE)
-   {
-      if (!$this->_valid_node($ext)) return(FALSE);
-      
-      $thisdom = $this->_get_dom();
-      $extdom  = $ext->_get_dom();
-
-      $newnode = $thisdom->ownerDocument->importNode($extdom, TRUE);
-      if ($newnode instanceOf DOMNode)
-      {
-         if ($before && $thisdom->parentNode instanceOf DOMNode)
-            $thisdom->parentNode->insertBefore($newnode, $thisdom);
-         else $thisdom->appendChild($newnode);
-      }
-
-      return($this);
-   }
-
-   public function _insert(
-      $tag,
-      $tagvalue = self::fork,
-      $attribute = NULL,
-      $nsprefix = NULL,
-      $after = FALSE)
-   {
-      if (!($curdom = $this->_get_dom()))
-         return(FALSE);
-
-      if ($after)
-      {
-         if (!$curdom->nextSibling)
-            return($this->_up()->_create($tag, $tagvalue, $attribute, $nsprefix));
-         else $refnode = $curdom->nextSibling;
-      }
-      else $refnode = $curdom;
-
-      $parsed = $this->_parse_name((empty($nsprefix) ? NULL : $nsprefix.":").$tag);
-      if (!empty($parsed["nsuri"]))
-      {
-         if ($tagvalue === TRUE || $tagvalue === FALSE)
-         {
-            $elem = $curdom->ownerDocument->createElementNS(
-               $parsed["nsuri"],
-               $parsed["name"]
-            );
-         }
-         else
-         {
-            $elem = $curdom->ownerDocument->createElementNS(
-                     $parsed["nsuri"],
-                     $parsed["name"],
-                     $tagvalue
-                  );
-         }
-
       }
       else
       {
-         if ($tagvalue === TRUE || $tagvalue === FALSE)
-            $elem = $curdom->ownerDocument->createElement($tag);
-         else
-            $elem = $curdom->ownerDocument->createElement($tag, $tagvalue);
+         $document = new DOMDocument;
+         $root = $document->createElement($options['qualified_name']);
+         if (strlen($default_ns_uri))
+            $root->setAttributeNS(self::XMLNS_URI, 'xmlns', $default_ns_uri);
+
+         $document->appendChild($root);
       }
 
-      $node = $curdom->parentNode->insertBefore($elem, $refnode);
-      if ($node instanceOf DOMElement)
+      $document->encoding = $options['encoding'];
+      $document->xmlVersion = $options['version'];
+      $document->xmlStandalone = $options['standalone'];
+
+      if (!empty($options['namespaces']))
       {
-         $sxenode = simplexml_import_dom($node, get_class($this));
-         if (!empty($attribute))
+         foreach ($options['namespaces'] as $prefix => $uri)
          {
-            foreach ($attribute as $attrname => $attrval)
-               $sxenode->_add_attribute($attrname, $attrval);
+            $document->documentElement->setAttributeNS(
+               self::XMLNS_URI,
+               (strpos($prefix, ':') === false ? 'xmlns:' : '') . $prefix,
+               $uri);
          }
       }
-      else return(FALSE);
 
-      return($tagvalue === self::fork ? $sxenode : $this);
+      if (!isset($class))
+      {
+         if (version_compare(PHP_VERSION, '5.3.0'))
+            $class = get_called_class();
+         else
+            $class = __CLASS__;
+      }
+
+      $neko = simplexml_import_dom($document, $class);
+
+      if (strlen($default_ns_uri))
+         $neko->registerXPathNamespace(self::DEFAULT_NS_PREFIX, $default_ns_uri);
+
+      if (!empty($options['attributes']))
+      {
+         foreach ($options['attributes'] as $attrname => $attrvalue)
+            $neko->addAttribute($attrname, $attrvalue);
+      }
+
+      return $neko;
    }
 
-   public function _path($query, $index = 0)
+   public function root()
    {
-      $found = $this->xpath($query);
-      if (is_array($found))
-         return(isset($found[$index]) ? $found[$index] : NULL);
-      else return($found);
+      return simplexml_import_dom($this->dom(true), get_class($this));
    }
 
-   public function _mark(&$var)
+   public function parent()
    {
-      $var = $this;
-      return($this);
-   }
-
-   public function _up()
-   {
-      if (($dom = $this->_get_dom()) === FALSE) return(FALSE);
+      $dom = $this->dom();
 
       if ($dom->parentNode instanceOf DOMNode)
-         return(simplexml_import_dom($dom->parentNode, get_class($this)));
-      else return(FALSE);
+         return simplexml_import_dom($dom->parentNode, get_class($this));
+      else
+         return false;
    }
 
-   public function _first_child()
+   public function dom($return_owner = false)
    {
-      return($this->_path("child::*[position()=1]"));
-   }
-
-   public function _root()
-   {
-      return($this->_path("/child::*[position()=1]"));
-   }
-
-   public function _last_child()
-   {
-      return($this->_path("child::*[position()=last()]"));
-   }
-
-   public function _select_child($index = 0)
-   {
-      if (($index = (int) $index) < 0) $index = 0;
-      return($this->_path("child::*[position()=".($index+1)."]"));
-   }
-
-   public function _next_sibling()
-   {
-      return($this->_path("following-sibling::*[position()=1]"));
-   }
-
-   public function _previous_sibling()
-   {
-      return($this->_path("preceding-sibling::*[position()=1]"));
-   }
-
-   public function _render()
-   {
-      $args = func_get_args();
-      $doc  = $this->_get_dom(TRUE);
-
-      if (in_array("tidy", $args))
+      $dom = dom_import_simplexml($this);
+      if (!$dom instanceOf DOMNode)
       {
-         $doc->formatOutput = TRUE;
-         $doc->preserveWhiteSpace = FALSE;
+         throw new Exception(
+            'Unable to get DOMElement representation of current node'
+         );
       }
 
-      if (in_array("dump", $args))
+      return ($return_owner ? $dom->ownerDocument : $dom);
+   }
+
+   protected function parseQualifiedName($qualified_name, $reference = null)
+   {
+      if (strpos($qualified_name, ':') === false)
       {
-         if (in_array("html", $args))
-         {
-            if (method_exists($doc, "saveHTMLFile"))
-               return($doc->saveHTMLFile("php://output"));
-            else
-               echo $doc->saveHTML();
-         }
+         return array(
+            'prefix' => null,
+            'uri' => null,
+            'local_name' => $qualified_name,
+            'qualified_name' => $qualified_name
+         );
+      }
+      else
+      {
+         list ($ns_prefix, $local_name) = explode(':', $qualified_name);
+
+         if ($ns_prefix === '' || $ns_prefix === self::DEFAULT_NS_PREFIX)
+            $ns_prefix = null;
+
+         if (!isset($reference)) $reference = $this->dom();
+
+         $ns_uri = $reference->ownerDocument->lookupNamespaceURI($ns_prefix);
+         return array(
+            'prefix' => $ns_prefix,
+            'uri' => $ns_uri,
+            'local_name' => $local_name,
+            'qualified_name' => $ns_prefix . ':' . $local_name
+         );
+      }
+   }
+
+   protected function appendText(DOMElement $node, $value)
+   {
+      $text = $node->ownerDocument->createTextNode($value);
+      $node->appendChild($text);
+   }
+
+   protected function setAttributes(DOMElement $node, array $attributes)
+   {
+      foreach ($attributes as $key => $value)
+      {
+         $key = $this->parseQualifiedName($key, $node);
+         if (empty($key['qualified_name'])) return false;
+
+         if (empty($key['uri']))
+            $node->setAttribute($key['qualified_name'], $value);
          else
-            return($doc->save("php://output"));
+            $node->setAttributeNS($key['uri'], $key['qualified_name'], $value);
       }
-
-      $func = (in_array("html", $args) ? "saveHTML" : "saveXML");
-
-      return($doc->{$func}());
    }
 
-   public function __call($name, $params)
+   public function add(
+      $node_name,
+      $node_value = true,
+      array $attributes = null)
    {
-      if (!strncmp($name, "_", 1)) return(FALSE);
+      $dom = $this->dom();
+      $tag = $this->parseQualifiedName($node_name, $dom);
+      if (empty($tag['qualified_name'])) return false;
 
-      switch (count($params))
+      if (empty($tag['uri']))
+         $node = $dom->ownerDocument->createElement($tag['qualified_name']);
+      else
       {
-         case 0: return($this->_create($name));
-         case 1:
-            if (is_array($params[0]))
-               return($this->_create($name, self::fork, $params[0]));
-            else return($this->_create($name, $params[0]));
-         case 2:
-            if (is_array($params[1]))
-               return($this->_create($name, $params[0], $params[1]));
-            else return($this->_create($name, $params[0], NULL, $params[1]));
-
-         case 3:
-            return($this->_create($name, $params[0], $params[1], $params[2]));
+         $node = $dom->ownerDocument->createElementNS(
+            $tag['uri'],
+            $tag['qualified_name']);
       }
+
+      if (!is_bool($node_value)) $this->appendText($node, $node_value);
+      if (!empty($attributes)) $this->setAttributes($node, $attributes);
+      $dom->appendChild($node);
+
+      if ($node_value !== true)
+         return $this;
+      else
+         return simplexml_import_dom($node, get_class($this));
+   }
+
+   public function insert(
+      $node_name,
+      $node_value = true,
+      array $attributes = null,
+      $insert_after = false)
+   {
+      $dom = $this->dom();
+
+      if (!$insert_after)
+         $reference = $dom;
+      else
+      {
+         if (!$dom->nextSibling)
+            return $this->parent()->add($node_name, $node_value, $attributes);
+         else
+            $reference = $dom->nextSibling;
+      }
+
+      $tag = $this->parseQualifiedName($node_name, $dom);
+      if (empty($tag['qualified_name'])) return false;
+
+      if (empty($tag['uri']))
+         $node = $dom->ownerDocument->createElement($tag['name']);
+      else
+      {
+         $node = $dom->ownerDocument->createElementNS(
+            $tag['uri'],
+            $tag['qualified_name']);
+      }
+
+      if (!empty($attributes)) $this->setAttributes($node, $attributes);
+
+      $dom->ownerDocument->insertBefore($node, $reference);
+      if (is_bool($node_value))
+         return simplexml_import_dom($node, get_class($this));
+      else
+      {
+         $this->appendText($node, $node_value);
+         return $this;
+      }
+   }
+
+   public function fragment($string, $is_soup = false)
+   {
+      $current_dom = $this->dom();
+      if ($is_soup)
+      {
+         libxml_use_internal_errors(true);
+         $temp = new DOMDocument;
+
+         $encoding = $current_dom->ownerDocument->encoding;
+         $temp->loadHTML(
+            '<?xml version="1.0" standalone="yes" encoding="' .
+            $encoding .
+            "\">\n" .
+            $string);
+
+         $temp->encoding = $encoding;
+         $xpath = new DOMXPath($temp);
+         $found = $xpath->query('/html/body/*');
+
+         $string = '';
+         if ($found instanceOf DOMNodeList && $found->length > 0)
+         {
+            foreach ($found as $child)
+               $string .= $temp->saveXML($child);
+         }
+      }
+
+      if (strlen($string) > 0)
+      {
+         $fragment = $current_dom->ownerDocument->createDocumentFragment();
+         if ($fragment instanceOf DOMDocumentFragment)
+         {
+            $fragment->appendXML($string);
+            $current_dom->appendChild($fragment);
+         }
+      }
+
+      return $this;
+   }
+
+   public function grab(&$var)
+   {
+      $var = $this;
+      return $this;
+   }
+
+   public function render($file = null, $is_html = false, $tidy = false)
+   {
+      $dom = $this->dom(true);
+
+      if ($tidy)
+      {
+         $dom->formatOutput = true;
+         $dom->preserveWhiteSpace = false;
+      }
+
+      if (!strlen($file))
+         return ($is_html ? $dom->saveHTML() : $dom->saveXML());
+      else
+         return ($is_html ? $dom->saveHTMLFile($file) : $dom->save($file));
+   }
+
+   public function _(
+      $node_name = null,
+      $node_value = true,
+      array $attributes = null)
+   {
+      if (!isset($node_name))
+         return $this->parent();
+      else
+         return $this->add($node_name, $node_value, $attributes);
    }
 }
