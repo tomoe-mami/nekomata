@@ -1,4 +1,4 @@
 Nekomata
 ========
 
-Nekomata is a simple PHP DOM based on SimpleXMLElement.
+Nekomata is a library for constructing well-formed XML/HTML document.

@@ -80,7 +80,7 @@ class Nekomata extends SimpleXMLElement
 
       if (!isset($class))
       {
-         if (version_compare(PHP_VERSION, '5.3.0'))
+         if (version_compare(PHP_VERSION, '5.3.0') >= 0)
             $class = get_called_class();
          else
             $class = __CLASS__;
@@ -228,7 +228,7 @@ class Nekomata extends SimpleXMLElement
       if (empty($tag['qualified_name'])) return false;
 
       if (empty($tag['uri']))
-         $node = $dom->ownerDocument->createElement($tag['name']);
+         $node = $dom->ownerDocument->createElement($tag['qualified_name']);
       else
       {
          $node = $dom->ownerDocument->createElementNS(
@@ -238,7 +238,7 @@ class Nekomata extends SimpleXMLElement
 
       if (!empty($attributes)) $this->setAttributes($node, $attributes);
 
-      $dom->ownerDocument->insertBefore($node, $reference);
+      $dom->parentNode->insertBefore($node, $reference);
       if (is_bool($node_value))
          return simplexml_import_dom($node, get_class($this));
       else
