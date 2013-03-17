@@ -6,6 +6,12 @@ class Nekomata extends SimpleXMLElement
    const XMLNS_URI         = 'http://www.w3.org/2000/xmlns/',
          DEFAULT_NS_PREFIX = '_';
 
+   /**
+    * Creates a new document.
+    *
+    * The $class argument is for helping this function detect the current class
+    * in PHP < 5.3.0. Only useful if you're trying to extend this class.
+    */
    public static function create(array $options = null, $class = null)
    {
       static $implementation;
@@ -15,7 +21,7 @@ class Nekomata extends SimpleXMLElement
             'system_id'       => null,
             'public_id'       => null,
             'qualified_name'  => 'root',
-            'encoding'        => 'UTF-8',
+            'encoding'        => 'utf-8',
             'version'         => '1.0',
             'standalone'      => false,
             'namespaces'      => array(),
@@ -97,11 +103,17 @@ class Nekomata extends SimpleXMLElement
       return $neko;
    }
 
+   /**
+    * Gets the root node of current document.
+    */
    public function root()
    {
       return simplexml_import_dom($this->dom(true), get_class($this));
    }
 
+   /**
+    * Gets the parent of current node.
+    */
    public function parent()
    {
       $dom = $this->dom();
@@ -112,6 +124,11 @@ class Nekomata extends SimpleXMLElement
          return false;
    }
 
+   /**
+    * Gets DOMElement representation of current node.
+    * If the optional $return_owner is set to true, returns the DOMDocument
+    * representation of current document.
+    */
    public function dom($return_owner = false)
    {
       $dom = dom_import_simplexml($this);
@@ -125,6 +142,9 @@ class Nekomata extends SimpleXMLElement
       return ($return_owner ? $dom->ownerDocument : $dom);
    }
 
+   /**
+    * Parses a qualified name and returns its components.
+    */
    protected function parseQualifiedName($qualified_name, $reference = null)
    {
       if (strpos($qualified_name, ':') === false)
@@ -139,28 +159,56 @@ class Nekomata extends SimpleXMLElement
       else
       {
          list ($ns_prefix, $local_name) = explode(':', $qualified_name);
-
          if ($ns_prefix === '' || $ns_prefix === self::DEFAULT_NS_PREFIX)
             $ns_prefix = null;
 
+         // xmlns is a reserved prefix
+         if ($ns_prefix === 'xmlns')
+         {
+            return array(
+               'prefix' => $ns_prefix,
+               'uri' => self::XMLNS_URI,
+               'local_name' => $local_name,
+               'qualified_name' => $qualified_name
+            );
+         }
+
          if (!isset($reference)) $reference = $this->dom();
 
-         $ns_uri = $reference->ownerDocument->lookupNamespaceURI($ns_prefix);
+         // check if the namespace is defined in referenced node
+         $ns_uri = $reference->lookupNamespaceURI($ns_prefix);
+         // if not found, check the namespaces defined in document
+         if ($ns_uri === null)
+            $ns_uri = $reference->ownerDocument->lookupNamespaceURI($ns_prefix);
+
+         if ($ns_uri === null)
+         {
+            throw new Exception(
+               "Unable to resolve namespace prefix `$ns_prefix`",
+               DOM_NAMESPACE_ERR);
+         }
+
          return array(
             'prefix' => $ns_prefix,
             'uri' => $ns_uri,
             'local_name' => $local_name,
-            'qualified_name' => $ns_prefix . ':' . $local_name
+            'qualified_name' => $qualified_name
          );
       }
    }
 
+   /**
+    * Appends a DOMText to an element.
+    */
    protected function appendText(DOMElement $node, $value)
    {
       $text = $node->ownerDocument->createTextNode($value);
       $node->appendChild($text);
    }
 
+   /**
+    * Sets attributes for an element.
+    */
    protected function setAttributes(DOMElement $node, array $attributes)
    {
       foreach ($attributes as $key => $value)
@@ -174,6 +222,16 @@ class Nekomata extends SimpleXMLElement
       }
    }
 
+   /**
+    * Creates a new element and appends it to current node.
+    *
+    * If $node_value is a boolean, no DOMText will be appended to the newly
+    * created element and the element will self-closed in the resulting output.
+    * 
+    * If you set the $node_value to true, this function will return the newly
+    * created element. Otherwise, the current node (the parent of the newly
+    * created element) will be returned.
+    */
    public function add(
       $node_name,
       $node_value = true,
@@ -201,6 +259,10 @@ class Nekomata extends SimpleXMLElement
          return simplexml_import_dom($node, get_class($this));
    }
 
+   /**
+    * Inserts an element before current node. If the optional $insert_after
+    * sets to true, the element will be inserted after the current node.
+    */
    public function insert(
       $node_name,
       $node_value = true,
@@ -242,6 +304,14 @@ class Nekomata extends SimpleXMLElement
       }
    }
 
+   /**
+    * Appends an XML fragment into current node.
+    * 
+    * The $string must be a valid XML fragment or it will throw
+    * an error. You can set the optional argument $is_soup to true
+    * to make it try parsing the fragment as html first before
+    * appending it.
+    */
    public function fragment($string, $is_soup = false)
    {
       $current_dom = $this->dom();
@@ -282,12 +352,16 @@ class Nekomata extends SimpleXMLElement
       return $this;
    }
 
-   public function grab(&$var)
-   {
-      $var = $this;
-      return $this;
-   }
-
+   /**
+    * Renders the current document.
+    *
+    * $file is then name of file where the output will be written to. You can use
+    * php://output to dump it to php's default output. If you don't specify any
+    * file name, the rendered output will be returned as a string.
+    *
+    * Set $is_html to true for HTML document (Note: XHTML is an XML document, so
+    * keep $is_html to false).
+    */
    public function render($file = null, $is_html = false, $tidy = false)
    {
       $dom = $this->dom(true);
@@ -304,6 +378,9 @@ class Nekomata extends SimpleXMLElement
          return ($is_html ? $dom->saveHTMLFile($file) : $dom->save($file));
    }
 
+   /**
+    * Shortcut for Nekomata->add() and Nekomata->parent()
+    */
    public function _(
       $node_name = null,
       $node_value = true,
@@ -314,4 +391,14 @@ class Nekomata extends SimpleXMLElement
       else
          return $this->add($node_name, $node_value, $attributes);
    }
+
+   /**
+    * Grabs the current node and puts it into var
+    */
+   public function grab($var)
+   {
+      $var = $this;
+      return $this;
+   }
+
 }
