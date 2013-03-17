@@ -134,7 +134,7 @@ class Nekomata extends SimpleXMLElement
       $dom = dom_import_simplexml($this);
       if (!$dom instanceOf DOMNode)
       {
-         throw new Exception(
+         throw new DOMException(
             'Unable to get DOMElement representation of current node'
          );
       }
@@ -183,7 +183,7 @@ class Nekomata extends SimpleXMLElement
 
          if ($ns_uri === null)
          {
-            throw new Exception(
+            throw new DOMException(
                "Unable to resolve namespace prefix `$ns_prefix`",
                DOM_NAMESPACE_ERR);
          }
@@ -260,6 +260,17 @@ class Nekomata extends SimpleXMLElement
    }
 
    /**
+    * Appends a DOMText into current node
+    */
+   public function text($string)
+   {
+      if (strlen($string))
+         $this->appendText($this->dom(), $string);
+
+      return $this;
+   }
+
+   /**
     * Inserts an element before current node. If the optional $insert_after
     * sets to true, the element will be inserted after the current node.
     */
@@ -301,6 +312,28 @@ class Nekomata extends SimpleXMLElement
       {
          $this->appendText($node, $node_value);
          return $this;
+      }
+   }
+
+   /**
+    * Queries an XPath and returns the matching element
+    * at the specified $index. If $index is a boolean,
+    * returns the whole result.
+    *
+    * This is just a shortcut since SimpleXMLElement can not
+    * to locate a namespaced node using $this->path->to->node
+    * syntax. With this function, you can use something like:
+    * $this->path->find('ns:to')->node.
+    */
+   public function find($query, $index = 0)
+   {
+      $found = $this->xpath($query);
+      if (!$found)
+         return null;
+      else
+      {
+         if (is_bool($index)) return $found;
+         return (isset($found[$index]) ? $found[$index] : null);
       }
    }
 
@@ -388,17 +421,21 @@ class Nekomata extends SimpleXMLElement
    {
       if (!isset($node_name))
          return $this->parent();
-      else
+      elseif (is_string($node_name))
          return $this->add($node_name, $node_value, $attributes);
+      elseif ($node_name instanceOf DOMNode)
+      {
+         $this->dom()->appendChild($node_name);
+         return $this;
+      }
    }
 
    /**
     * Grabs the current node and puts it into var
     */
-   public function grab($var)
+   public function grab(&$var)
    {
       $var = $this;
       return $this;
    }
-
 }

@@ -57,11 +57,7 @@ $doc
         ->_('bio:olb', 'This is an example user');
 
 header('Content-Type: text/xml');
-$doc->render(
-   'php://output', // 
-   false,
-   true
-);
+$doc->render('php://output', false, true);
 ```
 
 Result:
